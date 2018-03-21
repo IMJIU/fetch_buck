@@ -17,21 +17,23 @@ import java.util.concurrent.TimeUnit;
  **/
 public class Fetch {
     static Connection conn;
-    static boolean init = false;
+    static boolean disableCheckTime = true;
+    static String dbUrl = "jdbc:postgresql://127.0.0.1:5432/buck";
+    static String user = "ott";
+    static String pwd = "ott";
 
     public static void main(String[] args) throws Exception {
         init();
         exe();
-
     }
 
-    private static void insertPlateInfo(String time) throws SQLException {
-        String c = getText("http://quote.eastmoney.com/zs000001.html");
+    private static String insertPlateInfo(String time) throws SQLException {
+        String c = getText("http://quote.eastmoney.com/zs000001.html", "utf-8");
         int i1 = c.indexOf("token=") + 6;
         int i2 = c.indexOf("\"", i1);
         String token = c.substring(i1, i2);
         System.out.println(c.substring(i1, i2));
-        String val = getText("http://nufm.dfcfw.com/EM_Finance2014NumericApplication/JS.aspx?type=CT&cmd=0000011,3990012&sty=DFPIU&st=z&sr=&p=&ps=&cb=&js=var%20C1Cache={quotation:[(x)]}&token=" + token + "&0.2597831847847587");
+        String val = getText("http://nufm.dfcfw.com/EM_Finance2014NumericApplication/JS.aspx?type=CT&cmd=0000011,3990012&sty=DFPIU&st=z&sr=&p=&ps=&cb=&js=var%20C1Cache={quotation:[(x)]}&token=" + token + "&0.2597831847847587", "utf-8");
         System.out.println("content: " + val);
         int i3 = val.indexOf("\"") + 1;
         int i4 = val.indexOf("\"", i3);
@@ -42,12 +44,13 @@ public class Fetch {
         String sz = val.substring(i5, i6);
         addPlate(sh, time);
         addPlate(sz, time);
+        return token;
     }
 
     private static void addPlate(String sh, String time) throws SQLException {
         sh = sh.replace("%", "");
         String[] arr = sh.split(",");
-        exep("insert into plate values(nextval('seq_b'),?,?,?,?,?,?,?)", time, arr[0], toFloat(arr[2]), toFloat(arr[3]), toFloat(arr[4]), toFloat(arr[5]), arr[6]);
+        sql("insert into plate values(nextval('seq_b'),?,?,?,?,?,?,?)", time, arr[0], toFloat(arr[2]), toFloat(arr[3]), toFloat(arr[4]), toFloat(arr[5]), arr[6]);
     }
 
     private static String subQuate(String val) {
@@ -63,13 +66,13 @@ public class Fetch {
     }
 
     public void test_preparestatement() throws SQLException {
-        exep("insert into t(n) values(?)", 5);
+        sql("insert into t(n) values(?)", 5);
         List<Map<String, Object>> list = select("select * from t");
         list.forEach(m -> System.out.println(m));
     }
 
     public void test_sql() throws SQLException {
-        int n = exe("insert into t values(555)");
+        int n = sql("insert into t values(555)");
         System.out.println(n);
         List<Map<String, Object>> list = select("select * from t");
         list.forEach(m -> System.out.println(m));
@@ -79,33 +82,45 @@ public class Fetch {
         if (!timeCheck()) {
             return;
         }
-        String string = getText("http://data.eastmoney.com/bkzj/hy.html");
+        String string = getText("http://data.eastmoney.com/bkzj/hy.html", "gbk");
         float sh = getVal("sh000001");
         float sz = getVal("sz399001");
         try {
-            int i = string.indexOf("data:[\"");
-            int end = string.indexOf("]},", i);
-            String content = string.substring(i + 5, end + 1);
-            String[] arr = content.split("\"");
             String time = getTime();
-            System.out.println("" + time + "");
-            System.out.println(content);
-            for (int j = 1; j < arr.length; j += 2) {
-                String str = arr[j];
-                String[] row = str.split(",");
-                exep("insert into buck_trend values(nextval('seq_b'),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", time, j, row[1], row[2], toFloat(row[3]), toFloat(row[4]),
-                        toFloat(row[5]), toFloat(row[6]), toFloat(row[7]), toFloat(row[8]), toFloat(row[9]), toFloat(row[10]), toFloat(row[11]),
-                        toFloat(row[12]), toFloat(row[13]), row[14], row[15], sh, sz);
-            }
-            for (String s : arr) {
-                System.out.print(s + "\t");
-            }
+            String token = insertPlateInfo(time);
+            int n = insert(1, string, time, sh, sz);
+            string = getText("http://nufm.dfcfw.com/EM_Finance2014NumericApplication/JS.aspx?cmd=C._BKHY&type=ct&st=(BalFlowMain)&sr=-1&p=2&ps=50&js=var%20kXEgzhOH={pages:(pc),data:[(x)]}&token=" + token + "&sty=DCFFITABK&rt=50720577", "utf-8");
+            insert(n, string, time, sh, sz);
             System.out.println();
-            insertPlateInfo(time);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
 
+    }
+
+    private int insert(int n, String string, String time, float sh, float sz) throws SQLException {
+        int i = string.indexOf("data:[\"");
+        int end = string.indexOf("]},", i);
+        if (end == -1) {
+            end = string.indexOf("]}", i);
+        }
+        String content = string.substring(i + 5, end + 1);
+        String[] arr = content.split("\"");
+
+        System.out.println("" + time + "");
+        System.out.println(content);
+        for (int j = 1; j < arr.length; j += 2) {
+            String str = arr[j];
+            String[] row = str.split(",");
+            sql("insert into buck_trend values(nextval('seq_b'),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", time, n++, row[1], row[2], toFloat(row[3]), toFloat(row[4]),
+                    toFloat(row[5]), toFloat(row[6]), toFloat(row[7]), toFloat(row[8]), toFloat(row[9]), toFloat(row[10]), toFloat(row[11]),
+                    toFloat(row[12]), toFloat(row[13]), row[14], row[15], sh, sz);
+        }
+        for (String s : arr) {
+            System.out.print(s + "\t");
+        }
+        return n;
     }
 
     private static String getTime() {
@@ -116,7 +131,7 @@ public class Fetch {
         String sh = null;
         try {
             long cur = System.currentTimeMillis();
-            sh = getText("http://hq.sinajs.cn/rn=" + cur + "&list=" + name);
+            sh = getText("http://hq.sinajs.cn/rn=" + cur + "&list=" + name, "gbk");
             return Float.parseFloat(sh.split(",")[3]);
         } catch (Exception e) {
             System.out.println(sh);
@@ -126,10 +141,13 @@ public class Fetch {
     }
 
     private static boolean timeCheck() {
+        if (disableCheckTime) {
+            return true;
+        }
         String s = new SimpleDateFormat("HHmm").format(new Date());
         int result = Integer.parseInt(s);
         System.out.println(result);
-        if ((result >= 930 && result <= 1200) || (result >= 1300 && result <= 1520)) {
+        if ((result >= 930 && result <= 1140) || (result >= 1300 && result <= 1520)) {
             return true;
         }
         return false;
@@ -142,12 +160,12 @@ public class Fetch {
         return Float.parseFloat(s);
     }
 
-    private static String getText(String uri) {
+    private static String getText(String uri, String charset) {
         URL url;
         try {
             url = new URL(uri);
             InputStream is = url.openStream();
-            InputStreamReader isr = new InputStreamReader(is, "gbk");
+            InputStreamReader isr = new InputStreamReader(is, charset);
             BufferedReader br = new BufferedReader(isr);
             String data = br.readLine();
             StringBuilder result = new StringBuilder();
@@ -168,12 +186,9 @@ public class Fetch {
 
     public static void init() {
         String driverName = "org.postgresql.Driver";
-        String url = "jdbc:postgresql://127.0.0.1:5432/buck";
-        String user = "ott";
-        String password = "ott";
         try {
             Class.forName(driverName);
-            conn = DriverManager.getConnection(url, user, password);
+            conn = DriverManager.getConnection(dbUrl, user, pwd);
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         } catch (SQLException e) {
@@ -199,12 +214,12 @@ public class Fetch {
         return list;
     }
 
-    public static int exe(String sql) throws SQLException {
+    public static int sql(String sql) throws SQLException {
         Statement s = conn.createStatement();
         return s.executeUpdate(sql);
     }
 
-    public static int exep(String sql, Object... p) throws SQLException {
+    public static int sql(String sql, Object... p) throws SQLException {
         PreparedStatement ps = conn.prepareStatement(sql);
         for (int i = 0; i < p.length; i++) {
             ps.setObject(i + 1, p[i]);
