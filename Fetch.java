@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
  **/
 public class Fetch {
     static Connection conn;
-    static boolean disableCheckTime = true;
+    static boolean disableCheckTime = false;
     static String dbUrl = "jdbc:postgresql://127.0.0.1:5432/buck";
     static String user = "ott";
     static String pwd = "ott";
@@ -100,6 +100,7 @@ public class Fetch {
     }
 
     private int insert(int n, String string, String time, float sh, float sz) throws SQLException {
+        System.out.println("content:" + string);
         int i = string.indexOf("data:[\"");
         int end = string.indexOf("]},", i);
         if (end == -1) {
