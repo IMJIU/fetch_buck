@@ -1,9 +1,7 @@
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.URL;
+import java.nio.file.Files;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -21,6 +19,7 @@ public class Fetch {
     static String dbUrl = "jdbc:postgresql://127.0.0.1:5432/buck";
     static String user = "ott";
     static String pwd = "ott";
+    static String errorFile = "errorFile.err";
 
     public static void main(String[] args) throws Exception {
         init();
@@ -89,14 +88,34 @@ public class Fetch {
             String time = getTime();
             String token = insertPlateInfo(time);
             int n = insert(1, string, time, sh, sz);
-            string = getText("http://nufm.dfcfw.com/EM_Finance2014NumericApplication/JS.aspx?cmd=C._BKHY&type=ct&st=(BalFlowMain)&sr=-1&p=2&ps=50&js=var%20kXEgzhOH={pages:(pc),data:[(x)]}&token=" + token + "&sty=DCFFITABK&rt=50720577", "utf-8");
+            try {
+                string = getText("http://nufm.dfcfw.com/EM_Finance2014NumericApplication/JS.aspx?cmd=C._BKHY&type=ct&st=(BalFlowMain)&sr=-1&p=2&ps=50&js=var%20kXEgzhOH={pages:(pc),data:[(x)]}&token=" + token + "&sty=DCFFITABK&rt=50720577", "utf-8");
+            } catch (Exception e) {
+                e.printStackTrace();
+                appendErr(string);
+                return;
+            }
             insert(n, string, time, sh, sz);
             System.out.println();
-
         } catch (Exception e) {
             e.printStackTrace();
+            appendErr(string);
         }
 
+    }
+
+    private void appendErr(String string) {
+        File f = new File(errorFile);
+        try {
+            FileWriter fw = new FileWriter(f, true);
+            PrintWriter pw = new PrintWriter(fw);
+            pw.println(string);
+            fw.flush();
+            pw.close();
+            fw.close();
+        } catch (IOException e1) {
+            e1.printStackTrace();
+        }
     }
 
     private int insert(int n, String string, String time, float sh, float sz) throws SQLException {
