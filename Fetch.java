@@ -1,7 +1,6 @@
 
 import java.io.*;
 import java.net.URL;
-import java.nio.file.Files;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -81,35 +80,62 @@ public class Fetch {
         if (!timeCheck()) {
             return;
         }
+        boolean done1 = false;
+        boolean done2 = false;
+        int errCnt = 0;
         String string = getText("http://data.eastmoney.com/bkzj/hy.html", "gbk");
         float sh = getVal("sh000001");
         float sz = getVal("sz399001");
-        try {
-            String time = getTime();
-            String token = insertPlateInfo(time);
-            int n = insert(1, string, time, sh, sz);
+        String time = getTime();
+        while (!done1) {
             try {
-                string = getText("http://nufm.dfcfw.com/EM_Finance2014NumericApplication/JS.aspx?cmd=C._BKHY&type=ct&st=(BalFlowMain)&sr=-1&p=2&ps=50&js=var%20kXEgzhOH={pages:(pc),data:[(x)]}&token=" + token + "&sty=DCFFITABK&rt=50720577", "utf-8");
+                String token = insertPlateInfo(time);
+                int n = insert(1, string, time, sh, sz);
+                while (!done2) {
+                    string = getText("http://nufm.dfcfw.com/EM_Finance2014NumericApplication/JS.aspx?cmd=C._BKHY&type=ct&st=(BalFlowMain)&sr=-1&p=2&ps=50&js=var%20kXEgzhOH={pages:(pc),data:[(x)]}&token=" + token + "&sty=DCFFITABK&rt=50720577", "utf-8");
+                    try {
+                        insert(n, string, time, sh, sz);
+                    } catch (Exception e) {
+                        if (errCnt > 3) return;
+                        e.printStackTrace();
+                        appendErr(time, string);
+                        swallow(() -> Thread.sleep(1000));
+                        errCnt++;
+                    }
+                    System.out.println();
+                    done2 = true;
+                }
             } catch (Exception e) {
+                if (errCnt > 3) return;
                 e.printStackTrace();
-                appendErr(string);
-                return;
+                appendErr(time,string);
+                swallow(() -> Thread.sleep(1000));
+                errCnt++;
             }
-            insert(n, string, time, sh, sz);
-            System.out.println();
-        } catch (Exception e) {
-            e.printStackTrace();
-            appendErr(string);
+            done1 = true;
         }
-
     }
 
-    private void appendErr(String string) {
+    public interface Action {
+        void call() throws Exception;
+    }
+
+    public static void swallow(Action action) {
+        try {
+            action.call();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void appendErr(String time, String string) {
         File f = new File(errorFile);
         try {
             FileWriter fw = new FileWriter(f, true);
             PrintWriter pw = new PrintWriter(fw);
+            pw.println(time);
             pw.println(string);
+            pw.println();
             fw.flush();
             pw.close();
             fw.close();
