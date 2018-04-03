@@ -96,9 +96,11 @@ public class Fetch {
                     try {
                         insert(n, string, time, sh, sz);
                     } catch (Exception e) {
-                        if (errCnt > 3) return;
-                        e.printStackTrace();
-                        appendErr(time, string);
+                        if (errCnt > 3) {
+                            e.printStackTrace();
+                            appendErr(time, string);
+                            return;
+                        }
                         swallow(() -> Thread.sleep(1000));
                         errCnt++;
                     }
@@ -106,9 +108,11 @@ public class Fetch {
                     done2 = true;
                 }
             } catch (Exception e) {
-                if (errCnt > 3) return;
-                e.printStackTrace();
-                appendErr(time,string);
+                if (errCnt > 3) {
+                    e.printStackTrace();
+                    appendErr(time, string);
+                    return;
+                }
                 swallow(() -> Thread.sleep(1000));
                 errCnt++;
             }
